@@ -15,12 +15,15 @@ protocol SocketStreamDelegate{
 }
 
 class Socket: NSObject, NSStreamDelegate {
+    var delegate:SocketStreamDelegate?
     var _host:String?
     var _port:Int?
+
     let bufferSize = 1024
+
     private var inputStream: NSInputStream?
     private var outputStream: NSOutputStream?
-    var delegate:SocketStreamDelegate?
+
 
     deinit{
         if let inputStr = self.inputStream{
@@ -52,41 +55,36 @@ class Socket: NSObject, NSStreamDelegate {
             inputStream!.open()
             outputStream!.open()
         } else {
-            println("Socket: Failed Getting Streams")
+            println("[SKT]: Failed Getting Streams")
         }
     }
 
-    final func stream(incomingStream: NSStream, handleEvent eventCode: NSStreamEvent) {
-        if incomingStream.isKindOfClass(NSInputStream) {
-            switch eventCode {
+    /**
+    NSStream Delegate Method
+
+    :param: incomingStream <#incomingStream description#>
+    :param: eventCode      <#eventCode description#>
+    */
+    final func stream(stream: NSStream, handleEvent eventCode: NSStreamEvent) {
+        switch eventCode {
             case NSStreamEvent.ErrorOccurred:
-                println("input: ErrorOccurred: \(incomingStream.streamError?.description)")
+                println("[SKT] ErrorOccurred: \(stream.streamError?.description)")
             case NSStreamEvent.OpenCompleted:
-                println("input: OpenCompleted")
+                break;
             case NSStreamEvent.HasBytesAvailable:
-//                println("input: HasBytesAvailable")
-                handleIncommingStream(incomingStream)
-
-            default:
-                break;
-            }
-        }
-        else if incomingStream.isKindOfClass(NSOutputStream) {
-            switch eventCode {
-            case NSStreamEvent.ErrorOccurred:
-                println("output: ErrorOccurred: \(incomingStream.streamError?.description)")
-            case NSStreamEvent.OpenCompleted:
-                println("output: OpenCompleted")
+                handleIncommingStream(stream)
             case NSStreamEvent.HasSpaceAvailable:
-                println("output: HasSpaceAvailable")
-
+                break;
             default:
                 break;
-            }
         }
-        
     }
 
+    /**
+    Reads bytes asynchronously from incomming stream and calls delegate method socketDidReceiveMessage
+
+    :param: stream An NSInputStream
+    */
     final func handleIncommingStream(stream: NSStream){
         var buffer = Array<UInt8>(count: bufferSize, repeatedValue: 0)
 
@@ -97,13 +95,12 @@ class Socket: NSObject, NSStreamDelegate {
                 if let output = NSString(bytes: &buffer, length: bytesRead, encoding: NSUTF8StringEncoding){
                     self.delegate?.socketDidReceiveMessage(stream, message: output as String)
                 }
-
             } else {
                 // Handle error
             }
-
+            
         })
-
-
+        
+        
     }
 }

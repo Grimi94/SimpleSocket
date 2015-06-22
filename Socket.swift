@@ -25,9 +25,11 @@ class Socket: NSObject, NSStreamDelegate {
     deinit{
         if let inputStr = self.inputStream{
             inputStr.close()
+            inputStr.removeFromRunLoop(.mainRunLoop(), forMode: NSDefaultRunLoopMode)
         }
         if let outputStr = self.outputStream{
             outputStr.close()
+            outputStr.removeFromRunLoop(.mainRunLoop(), forMode: NSDefaultRunLoopMode)
         }
     }
 

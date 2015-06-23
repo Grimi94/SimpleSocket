@@ -50,7 +50,7 @@ class Socket: NSObject, NSStreamDelegate {
             inputStream!.scheduleInRunLoop(.mainRunLoop(), forMode: NSDefaultRunLoopMode)
             outputStream!.scheduleInRunLoop(.mainRunLoop(), forMode: NSDefaultRunLoopMode)
 
-            println("Socket: Open Stream")
+            println("[SKT]: Open Stream")
 
             inputStream!.open()
             outputStream!.open()
@@ -68,7 +68,7 @@ class Socket: NSObject, NSStreamDelegate {
     final func stream(stream: NSStream, handleEvent eventCode: NSStreamEvent) {
         switch eventCode {
             case NSStreamEvent.ErrorOccurred:
-                println("[SKT] ErrorOccurred: \(stream.streamError?.description)")
+                println("[SKT]: ErrorOccurred: \(stream.streamError?.description)")
             case NSStreamEvent.OpenCompleted:
                 break;
             case NSStreamEvent.HasBytesAvailable:

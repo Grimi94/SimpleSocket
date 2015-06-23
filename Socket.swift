@@ -16,14 +16,25 @@ protocol SocketStreamDelegate{
 
 class Socket: NSObject, NSStreamDelegate {
     var delegate:SocketStreamDelegate?
-    var _host:String?
-    var _port:Int?
 
-    let bufferSize = 1024
-
+    private let bufferSize = 1024
+    private var _host:String?
+    private var _port:Int?
+    private var _messagesQueue:Array<String>?
     private var inputStream: NSInputStream?
     private var outputStream: NSOutputStream?
 
+    var host:String?{
+        get{
+            return self._host
+        }
+    }
+
+    var port:Int?{
+        get{
+            return self._port
+        }
+    }
 
     deinit{
         if let inputStr = self.inputStream{
@@ -36,6 +47,7 @@ class Socket: NSObject, NSStreamDelegate {
         }
     }
 
+    
     final func open(host:String!, port:Int!){
         self._host = host
         self._port = port
@@ -52,6 +64,8 @@ class Socket: NSObject, NSStreamDelegate {
 
             println("[SKT]: Open Stream")
 
+            self._messagesQueue = Array()
+
             inputStream!.open()
             outputStream!.open()
         } else {
@@ -60,21 +74,28 @@ class Socket: NSObject, NSStreamDelegate {
     }
 
     /**
-    NSStream Delegate Method
+    NSStream Delegate Method where we handle errors, read and write data from input and output streams
 
-    :param: incomingStream <#incomingStream description#>
-    :param: eventCode      <#eventCode description#>
+    :param: stream NStream that called delegate method
+    :param: eventCode      Event Code
     */
     final func stream(stream: NSStream, handleEvent eventCode: NSStreamEvent) {
         switch eventCode {
+            case NSStreamEvent.EndEncountered:
+                break;
+
             case NSStreamEvent.ErrorOccurred:
                 println("[SKT]: ErrorOccurred: \(stream.streamError?.description)")
+
             case NSStreamEvent.OpenCompleted:
                 break;
+
             case NSStreamEvent.HasBytesAvailable:
                 handleIncommingStream(stream)
+
             case NSStreamEvent.HasSpaceAvailable:
                 break;
+
             default:
                 break;
         }
@@ -100,7 +121,6 @@ class Socket: NSObject, NSStreamDelegate {
             }
             
         })
-        
         
     }
 }

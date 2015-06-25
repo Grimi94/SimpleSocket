@@ -8,10 +8,10 @@
 
 import UIKit
 
-protocol SocketStreamDelegate{
+@objc protocol SocketStreamDelegate{
     func socketDidConnect(stream:NSStream)
-    func socketDidDisconnet(stream:NSStream, message:String)
-    func socketDidReceiveMessage(stream:NSStream, message:String)
+    optional func socketDidDisconnet(stream:NSStream, message:String)
+    optional func socketDidReceiveMessage(stream:NSStream, message:String)
 }
 
 class Socket: NSObject, NSStreamDelegate {
@@ -20,7 +20,8 @@ class Socket: NSObject, NSStreamDelegate {
     private let bufferSize = 1024
     private var _host:String?
     private var _port:Int?
-    private var _messagesQueue:Array<String>?
+    private var _messagesQueue:Array<String> = [String]()
+    private var _streamHasSpace:Bool = false
     private var inputStream: NSInputStream?
     private var outputStream: NSOutputStream?
 
@@ -47,7 +48,12 @@ class Socket: NSObject, NSStreamDelegate {
         }
     }
 
-    
+    /**
+    Opens streaming for both reading and writing, error will be thrown if you try to send a message and streaming hasn't been opened
+
+    :param: host String with host portion
+    :param: port Port
+    */
     final func open(host:String!, port:Int!){
         self._host = host
         self._port = port
@@ -62,14 +68,14 @@ class Socket: NSObject, NSStreamDelegate {
             inputStream!.scheduleInRunLoop(.mainRunLoop(), forMode: NSDefaultRunLoopMode)
             outputStream!.scheduleInRunLoop(.mainRunLoop(), forMode: NSDefaultRunLoopMode)
 
-            println("[SKT]: Open Stream")
+            println("[SCKT]: Open Stream")
 
             self._messagesQueue = Array()
 
             inputStream!.open()
             outputStream!.open()
         } else {
-            println("[SKT]: Failed Getting Streams")
+            println("[SCKT]: Failed Getting Streams")
         }
     }
 
@@ -82,22 +88,34 @@ class Socket: NSObject, NSStreamDelegate {
     final func stream(stream: NSStream, handleEvent eventCode: NSStreamEvent) {
         switch eventCode {
             case NSStreamEvent.EndEncountered:
-                break;
+                endEncountered(stream)
 
             case NSStreamEvent.ErrorOccurred:
-                println("[SKT]: ErrorOccurred: \(stream.streamError?.description)")
+                println("[SCKT]: ErrorOccurred: \(stream.streamError?.description)")
 
             case NSStreamEvent.OpenCompleted:
-                break;
+                openCompleted(stream)
 
             case NSStreamEvent.HasBytesAvailable:
                 handleIncommingStream(stream)
 
             case NSStreamEvent.HasSpaceAvailable:
+                println("space available")
+                _streamHasSpace = true;
                 break;
 
             default:
                 break;
+        }
+    }
+
+    final func endEncountered(stream:NSStream){
+
+    }
+
+    final func openCompleted(stream:NSStream){
+        if(self.inputStream?.streamStatus == .Open && self.outputStream?.streamStatus == .Open){
+            delegate?.socketDidConnect(stream)
         }
     }
 
@@ -107,20 +125,33 @@ class Socket: NSObject, NSStreamDelegate {
     :param: stream An NSInputStream
     */
     final func handleIncommingStream(stream: NSStream){
-        var buffer = Array<UInt8>(count: bufferSize, repeatedValue: 0)
+        if let inputStream = stream as? NSInputStream {
+            var buffer = Array<UInt8>(count: bufferSize, repeatedValue: 0)
 
-        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), { () -> Void in
-            let bytesRead = (stream as! NSInputStream).read(&buffer, maxLength: 1024)
+            dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), { () -> Void in
+                let bytesRead = inputStream.read(&buffer, maxLength: 1024)
 
-            if bytesRead >= 0 {
-                if let output = NSString(bytes: &buffer, length: bytesRead, encoding: NSUTF8StringEncoding){
-                    self.delegate?.socketDidReceiveMessage(stream, message: output as String)
+                if bytesRead >= 0 {
+                    if let output = NSString(bytes: &buffer, length: bytesRead, encoding: NSUTF8StringEncoding){
+                        self.delegate?.socketDidReceiveMessage!(stream, message: output as String)
+                    }
+                } else {
+                    // Handle error
                 }
-            } else {
-                // Handle error
-            }
-            
-        })
-        
+                
+            })
+        } else {
+            println("[SCKT]: \(__FUNCTION__) : Incorrect stream received")
+        }
+
+    }
+
+    final func send(message:String){
+        _messagesQueue.insert(message, atIndex: 0)
+
+        if _messagesQueue.count > 0{
+
+        }
+
     }
 }

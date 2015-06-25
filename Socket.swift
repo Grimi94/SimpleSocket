@@ -101,7 +101,7 @@ class Socket: NSObject, NSStreamDelegate {
 
             case NSStreamEvent.HasSpaceAvailable:
                 println("space available")
-                _streamHasSpace = true;
+                writeToStream()
                 break;
 
             default:
@@ -146,12 +146,23 @@ class Socket: NSObject, NSStreamDelegate {
 
     }
 
+    final func writeToStream(){
+        if _messagesQueue.count > 0 && self.outputStream!.hasSpaceAvailable  {
+            let message = _messagesQueue.removeLast()
+
+            dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), { () -> Void in
+                let data: NSData = message.dataUsingEncoding(NSUTF8StringEncoding)!
+                var buffer = [UInt8](count:data.length, repeatedValue:0)
+
+                self.outputStream!.write(&buffer, maxLength: data.length)
+            })
+
+        }
+    }
+
     final func send(message:String){
         _messagesQueue.insert(message, atIndex: 0)
 
-        if _messagesQueue.count > 0{
-
-        }
-
+        writeToStream()
     }
 }

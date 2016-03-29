@@ -12,6 +12,7 @@ import UIKit
     func socketDidConnect(stream:NSStream)
     optional func socketDidDisconnet(stream:NSStream, message:String)
     optional func socketDidReceiveMessage(stream:NSStream, message:String)
+    optional func socketDidEndConnection()
 }
 
 class Socket: NSObject, NSStreamDelegate {
@@ -24,6 +25,7 @@ class Socket: NSObject, NSStreamDelegate {
     private var _streamHasSpace:Bool = false
     private var inputStream: NSInputStream?
     private var outputStream: NSOutputStream?
+    private var token: dispatch_once_t = 0
 
     var host:String?{
         get{
@@ -58,7 +60,15 @@ class Socket: NSObject, NSStreamDelegate {
         self._host = host
         self._port = port
 
-        NSStream.getStreamsToHostWithName(self._host!, port: self._port!, inputStream: &inputStream, outputStream: &outputStream)
+        if #available(iOS 8.0, *) {
+            NSStream.getStreamsToHostWithName(self._host!, port: self._port!, inputStream: &inputStream, outputStream: &outputStream)
+        } else {
+            var inStreamUnmanaged:Unmanaged<CFReadStream>?
+            var outStreamUnmanaged:Unmanaged<CFWriteStream>?
+            CFStreamCreatePairWithSocketToHost(nil, host, UInt32(port), &inStreamUnmanaged, &outStreamUnmanaged)
+            inputStream = inStreamUnmanaged?.takeRetainedValue()
+            outputStream = outStreamUnmanaged?.takeRetainedValue()
+        }
 
         if inputStream != nil && outputStream != nil {
 
@@ -68,14 +78,14 @@ class Socket: NSObject, NSStreamDelegate {
             inputStream!.scheduleInRunLoop(.mainRunLoop(), forMode: NSDefaultRunLoopMode)
             outputStream!.scheduleInRunLoop(.mainRunLoop(), forMode: NSDefaultRunLoopMode)
 
-            println("[SCKT]: Open Stream")
+            print("[SCKT]: Open Stream")
 
             self._messagesQueue = Array()
 
             inputStream!.open()
             outputStream!.open()
         } else {
-            println("[SCKT]: Failed Getting Streams")
+            print("[SCKT]: Failed Getting Streams")
         }
     }
 
@@ -91,7 +101,7 @@ class Socket: NSObject, NSStreamDelegate {
                 endEncountered(stream)
 
             case NSStreamEvent.ErrorOccurred:
-                println("[SCKT]: ErrorOccurred: \(stream.streamError?.description)")
+                print("[SCKT]: ErrorOccurred: \(stream.streamError?.description)")
 
             case NSStreamEvent.OpenCompleted:
                 openCompleted(stream)
@@ -100,7 +110,7 @@ class Socket: NSObject, NSStreamDelegate {
                 handleIncommingStream(stream)
 
             case NSStreamEvent.HasSpaceAvailable:
-                println("space available")
+                print("space available")
                 writeToStream()
                 break;
 
@@ -115,7 +125,10 @@ class Socket: NSObject, NSStreamDelegate {
 
     final func openCompleted(stream:NSStream){
         if(self.inputStream?.streamStatus == .Open && self.outputStream?.streamStatus == .Open){
-            delegate?.socketDidConnect(stream)
+
+            dispatch_once(&token) {
+                self.delegate?.socketDidConnect(stream)
+            }
         }
     }
 
@@ -141,7 +154,7 @@ class Socket: NSObject, NSStreamDelegate {
                 
             })
         } else {
-            println("[SCKT]: \(__FUNCTION__) : Incorrect stream received")
+            print("[SCKT]: \(#function) : Incorrect stream received")
         }
 
     }
@@ -158,6 +171,7 @@ class Socket: NSObject, NSStreamDelegate {
                 let message = self._messagesQueue.removeLast()
                 let data: NSData = message.dataUsingEncoding(NSUTF8StringEncoding)!
                 var buffer = [UInt8](count:data.length, repeatedValue:0)
+                data.getBytes(&buffer, length:data.length * sizeof(UInt8))
 
                 //An error ocurred when writing
                 if self.outputStream!.write(&buffer, maxLength: data.length) == -1 {

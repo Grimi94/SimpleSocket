@@ -26,7 +26,8 @@ class Socket: NSObject, NSStreamDelegate {
     private var inputStream: NSInputStream?
     private var outputStream: NSOutputStream?
     private var token: dispatch_once_t = 0
-
+    var isClosed = false
+    var isOpen = false
     var host:String?{
         get{
             return self._host
@@ -89,6 +90,20 @@ class Socket: NSObject, NSStreamDelegate {
         }
     }
 
+    final func close(){
+        if let inputStr = self.inputStream{
+            inputStr.delegate = nil
+            inputStr.close()
+            inputStr.removeFromRunLoop(.mainRunLoop(), forMode: NSDefaultRunLoopMode)
+        }
+        if let outputStr = self.outputStream{
+            outputStr.delegate = nil
+            outputStr.close()
+            outputStr.removeFromRunLoop(.mainRunLoop(), forMode: NSDefaultRunLoopMode)
+        }
+        isClosed = true
+    }
+
     /**
     NSStream Delegate Method where we handle errors, read and write data from input and output streams
 
@@ -120,13 +135,13 @@ class Socket: NSObject, NSStreamDelegate {
     }
 
     final func endEncountered(stream:NSStream){
-
+        
     }
 
     final func openCompleted(stream:NSStream){
         if(self.inputStream?.streamStatus == .Open && self.outputStream?.streamStatus == .Open){
-
             dispatch_once(&token) {
+                self.isOpen = true
                 self.delegate?.socketDidConnect(stream)
             }
         }
